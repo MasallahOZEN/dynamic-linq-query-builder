@@ -53,6 +53,12 @@ namespace Castle.DynamicLinqQueryBuilder
             return BuildQuery(queryable.AsQueryable(), filterRule, out parsedQuery, useIndexedProperty, indexedPropertyName);
         }
 
+        public static IQueryable<T> BuildDynamicQuery<T>(this IQueryable<T> queryable, IFilterRule filterRule)
+        {
+            string parsedQuery;
+            return BuildQuery(queryable, filterRule, out parsedQuery, false, null);
+        }
+
         /// <summary>
         /// Gets the filtered collection after applying the provided filter rules.
         /// </summary>
