@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CSharp.RuntimeBinder;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -265,7 +266,14 @@ namespace Castle.DynamicLinqQueryBuilder
                     else
                     {
                         var propertyExp = Expression.Property(pe, rule.Field);
-                        return BuildOperatorExpression(propertyExp, rule, options, type);
+                        MemberExpression rightPropertyExp = null;
+
+                        if (rule.Value?.ToString().ToLower().StartsWith("[it].") == true)
+                        {
+                            rightPropertyExp = Expression.Property(pe, rule.Value.ToString().Replace("[it].",""));
+                        }
+
+                        return BuildOperatorExpression(propertyExp, rule, options, type, rightPropertyExp);
                     }
                 }
             }
@@ -278,6 +286,7 @@ namespace Castle.DynamicLinqQueryBuilder
             {
                 var propertyName = propertyCollectionEnumerator.Current;
                 var property = expression.Type.GetProperty(propertyName);
+
                 expression = Expression.Property(expression, property);
 
                 var propertyType = property.PropertyType;
@@ -306,7 +315,7 @@ namespace Castle.DynamicLinqQueryBuilder
             return BuildOperatorExpression(expression, rule, options, type);
         }
 
-        private static Expression BuildOperatorExpression(Expression propertyExp, IFilterRule rule, BuildExpressionOptions options, Type type)
+        private static Expression BuildOperatorExpression(Expression propertyExp, IFilterRule rule, BuildExpressionOptions options, Type type, Expression rightPropertyExp = null)
         {
             Expression expression;
 
@@ -319,10 +328,10 @@ namespace Castle.DynamicLinqQueryBuilder
                     expression = NotIn(type, rule.Value, propertyExp, options);
                     break;
                 case "equal":
-                    expression = Equals(type, rule.Value, propertyExp, options);
+                    expression = Equals(type, rule.Value, propertyExp, options, rightPropertyExp);
                     break;
                 case "not_equal":
-                    expression = NotEquals(type, rule.Value, propertyExp, options);
+                    expression = NotEquals(type, rule.Value, propertyExp, options, rightPropertyExp);
                     break;
                 case "between":
                     expression = Between(type, rule.Value, propertyExp, options);
@@ -636,15 +645,19 @@ namespace Castle.DynamicLinqQueryBuilder
 
 
 
-        private static Expression NotEquals(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression NotEquals(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
-            return Expression.Not(Equals(type, value, propertyExp, options));
+            return Expression.Not(Equals(type, value, propertyExp, options, rightPropertyExp));
         }
 
 
 
-        private static Expression Equals(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression Equals(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
+            if (rightPropertyExp!=null)
+            {
+                return Expression.Equal(propertyExp, rightPropertyExp);
+            }
             Expression someValue = GetConstants(type, value, false, options).First();
 
             Expression exOut;
@@ -666,8 +679,13 @@ namespace Castle.DynamicLinqQueryBuilder
 
         }
 
-        private static Expression LessThan(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression LessThan(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
+            if (rightPropertyExp!=null)
+            {
+                return Expression.LessThan(propertyExp, rightPropertyExp);
+            }
+
             var someValue = GetConstants(type, value, false, options).First();
 
             Expression exOut = Expression.LessThan(propertyExp, Expression.Convert(someValue, propertyExp.Type));
@@ -675,11 +693,15 @@ namespace Castle.DynamicLinqQueryBuilder
 
             return exOut;
 
-
         }
 
-        private static Expression LessThanOrEqual(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression LessThanOrEqual(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
+            if (rightPropertyExp != null)
+            {
+                return Expression.LessThanOrEqual(propertyExp, rightPropertyExp);
+            }
+
             var someValue = GetConstants(type, value, false, options).First();
 
             Expression exOut = Expression.LessThanOrEqual(propertyExp, Expression.Convert(someValue, propertyExp.Type));
@@ -690,8 +712,12 @@ namespace Castle.DynamicLinqQueryBuilder
 
         }
 
-        private static Expression GreaterThan(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression GreaterThan(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
+            if (rightPropertyExp != null)
+            {
+                return Expression.GreaterThan(propertyExp, rightPropertyExp);
+            }
 
             var someValue = GetConstants(type, value, false, options).First();
 
@@ -705,8 +731,13 @@ namespace Castle.DynamicLinqQueryBuilder
 
         }
 
-        private static Expression GreaterThanOrEqual(Type type, object value, Expression propertyExp, BuildExpressionOptions options)
+        private static Expression GreaterThanOrEqual(Type type, object value, Expression propertyExp, BuildExpressionOptions options, Expression rightPropertyExp = null)
         {
+            if (rightPropertyExp != null)
+            {
+                return Expression.GreaterThanOrEqual(propertyExp, rightPropertyExp);
+            }
+
             var someValue = GetConstants(type, value, false, options).First();
 
             Expression exOut = Expression.GreaterThanOrEqual(propertyExp, Expression.Convert(someValue, propertyExp.Type));

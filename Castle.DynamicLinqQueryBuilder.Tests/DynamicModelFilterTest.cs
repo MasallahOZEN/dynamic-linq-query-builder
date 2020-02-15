@@ -2,6 +2,8 @@
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Schema;
 using NUnit.Framework;
 using System;
 using System.Collections;
@@ -18,12 +20,26 @@ using System.Threading.Tasks;
 
 namespace Castle.DynamicLinqQueryBuilder.Tests
 {
+    public class BoundedReferenceDataActionItem
+    {
+        public string ReferencedObjectId { get; set; }
+        public int FormId { get; set; }
+        public int Mode { get; set; }
+        public int ComponentStateId { get; set; }
+        public int StateId { get; set; }
+        public int ComponentId { get; set; }
+        public int ComponentEventId { get; set; }
+        public dynamic DataItem { get; set; }
+    }
+
     public static class MyTypeBuilder
     {
-        public static object CreateNewObject(List<dynamic> yourListOfFields)
+        public static object CreateNewObject(List<dynamic> yourListOfFields, out Type type)
         {
             var myType = CompileResultType(yourListOfFields);
             var myObject = Activator.CreateInstance(myType);
+
+            type = myType;
 
             return myObject;
         }
@@ -34,7 +50,16 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 
             // NOTE: assuming your list contains Field objects with fields FieldName(string) and FieldType(Type)
             foreach (var field in yourListOfFields)
-                CreateProperty(tb, field.FieldName, field.FieldType);
+            {
+                if (field.FieldType!= typeof(ExpandoObject))
+                {
+                    CreateProperty(tb, field.FieldName, field.FieldType);
+                }
+                else
+                {
+                    CreateProperty(tb, field.FieldName, typeof(object));
+                }
+            } 
 
             Type objectType = tb.CreateType();
             return objectType;
@@ -42,7 +67,7 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 
         private static TypeBuilder GetTypeBuilder()
         {
-            var typeSignature = "MyDynamicType";
+            var typeSignature = "MyDynamicType"+new Random().Next(0,100).ToString();
             var an = new AssemblyName(typeSignature);
             AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(an, AssemblyBuilderAccess.Run);
             ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule("MainModule");
@@ -193,7 +218,9 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 
                 var propData = expObjData as IDictionary<string, Object>;
 
-                var ressss = GetData(propData, rule2);
+                var newObj = CreateDataObject(propData,out Type type);
+
+                var ressss = GetFilterData(newObj, rule2);
 
                 //var quarableList = new[] { new { TypeName = "PROCESS.ITEM.END" } }.ToList().AsQueryable();
                 //var resr = listt.BuildQuery(rule2).ToList();
@@ -275,11 +302,156 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 
             ExpandoObject genereatedObj = newDataObj.ToExpando();
 
-            var res = GetData(genereatedObj as IDictionary<string, Object>, rule);
+            var createdObj = CreateDataObject(genereatedObj as IDictionary<string, Object>,out Type type);
+
+            var ressss = GetFilterData(createdObj,rule);
+
+        }
+        
+        [Test]
+        public void TestBoundedReferenceDataActionItem()
+        {
+            var dataItem = @"{
+		        'Id': 999,
+		        'PersonImsId': 123,
+		        'CreatorImsId': 123
+	        }";
+
+            var boundRefDataItem = new BoundedReferenceDataActionItem { 
+                FormId = 1,
+                Mode = 1,
+                ComponentId = 12,
+                StateId = 1
+            };
+
+            var expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
+
+            var newDataObj = expObj as IDictionary<string, Object>;
+
+            //var newObj = new ExpandoObject() as IDictionary<string, Object>;
+            //newObj.Add("FirstName", "Masallah");
+            //newObj.Add("LastName", "ÖZEN");
+            //newObj.Add("Age", 36);
+
+            //var expr = $"{newObj["Age"]} ";
+            //newDataObj.Add("FirstName", "Masallah");
+
+            //dynamic newObj = newDataObj.ToExpando();
+
+            ////var scriptContent = @" ((System.Collections.Generic.IDictionary<System.String, System.Object>)data)[""ParentId""] == null ";
+            //var scriptContent = @" data.PersonImsId == data.CreatorImsId ";
+
+            //var refs = new List<MetadataReference>{
+            //    MetadataReference.CreateFromFile(typeof(Microsoft.CSharp.RuntimeBinder.RuntimeBinderException).GetTypeInfo().Assembly.Location),
+            //    MetadataReference.CreateFromFile(typeof(System.Runtime.CompilerServices.DynamicAttribute).GetTypeInfo().Assembly.Location)
+            //};
+
+            //var script = CSharpScript.Create(scriptContent, options: ScriptOptions.Default.AddReferences(refs), globalsType: typeof(Globals));
+
+            //script.Compile();
+
+            //// create new global that will contain the data we want to send into the script
+            //var g = new Globals() { data = newObj };
+
+            ////Execute and display result
+            //var r = script.RunAsync(g).Result;
+
+            //newDataObj.Add("DataOwner", r.ReturnValue);
+
+            var rule = new FilterRule
+            {
+                Condition = "and",
+                Field = "FormId",
+                Id = "DataOwner",
+                Input = "NA",
+                Operator = "not_equal",
+                Type = "integer",
+                Value = "[it].Mode"
+            };
+
+            var genericList = new List<BoundedReferenceDataActionItem>()
+            {
+                boundRefDataItem
+            };
+
+            var res =genericList.BuildQuery(rule).ToList();
 
         }
 
-        private object GetData(IDictionary<string, Object> propData, FilterRule rule)
+        [Test]
+        public void TestBoundedReferenceDataActionItemDynamicProperties()
+        {
+         //   var dataItem = @"{
+		       // 'Id': 999,
+		       // 'PersonImsId': 123,
+		       // 'CreatorImsId': 123
+	        //}";
+            
+            var dataItem = @"{
+		        'FormId': 1,
+		        'Mode': 1,
+                'DataItem':{
+		            'Id': 999,
+		            'PersonImsId': 123,
+		            'CreatorImsId': 123
+	            }
+	        }";
+
+            var jsonObjectData = JObject.Parse(dataItem);
+
+            string line = JsonUtils.GenerateDynamicLinqStatement(jsonObjectData);
+
+            var queryable = new[] { jsonObjectData }.AsQueryable<JObject>().Select(line);
+
+            var asss = queryable.Where("DataItem.PersonImsId == DataItem.CreatorImsId ").ToDynamicList();
+
+            bool result = queryable.Any("DataItem.PersonImsId == DataItem.CreatorImsId ");
+
+            dynamic _expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
+
+            var dataItemObj = CreateDataObject(_expObj as IDictionary<string, Object>, out Type type1);
+
+            var fieldDictList = (_expObj as IDictionary<string, Object>);
+
+
+            //var boundRefDataItem = new BoundedReferenceDataActionItem
+            //{
+            //    FormId = 1,
+            //    Mode = 1,
+            //    ComponentId = 12,
+            //    StateId = 1
+            //};
+
+            //dynamic expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
+
+            //var _dataItemObj = CreateDataObject(expObj as IDictionary<string, Object>,out Type type);
+
+            ////boundRefDataItem.DataItem = dataItemObj;
+            //var boundRefDataItem = new
+            //{
+            //    FormId = 1,
+            //    Mode = 1,
+            //    ComponentId = 12,
+            //    StateId = 1,
+            //    DataItem = dataItemObj
+            //};
+
+            var rule = new FilterRule
+            {
+                Condition = "and",
+                Field = "DataItem.PersonImsId",
+                Id = "DataOwner",
+                Input = "NA",
+                Operator = "equal",
+                Type = "integer",
+                Value = "123"
+            };
+
+            var res = new[] { dataItemObj }.AsQueryable().BuildQuery(rule).ToList();
+
+        }
+
+        private object CreateDataObject(IDictionary<string, Object> propData, out Type type)
         {
 
             #region Another trying
@@ -303,14 +475,31 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 fieldList.Add(new { FieldName = item.Key, FieldType = item.Value != null ? item.Value.GetType() : typeof(object) });
             }
 
-            var newObject = MyTypeBuilder.CreateNewObject(fieldList);
+            var newObject = MyTypeBuilder.CreateNewObject(fieldList,out Type newType);
 
             foreach (var item in propData)
             {
                 var value = propData[item.Key];
-                newObject.GetType().GetProperty(item.Key).SetValue(newObject, value);
-            }
 
+                if (value?.GetType().Name == "ExpandoObject")
+                {
+                    var newJson = JsonConvert.SerializeObject(value);
+                    var newJsonExpando = JsonConvert.DeserializeObject<ExpandoObject>(newJson) as IDictionary<string, Object>;
+
+                    var newChildObj = CreateDataObject(newJsonExpando, out Type subType);
+                    newObject.GetType().GetProperty(item.Key).SetValue(newObject, newChildObj);
+                }
+                else
+                {
+                    newObject.GetType().GetProperty(item.Key).SetValue(newObject, value);
+                }
+            }
+            type = newType;
+            return newObject;
+        }
+
+        private object GetFilterData(object newObject, FilterRule rule)
+        {
             IList<object> sourceList = new[] { newObject }.ToList();
 
             MethodInfo method = typeof(Extensions).GetMethod("CloneListAs");
