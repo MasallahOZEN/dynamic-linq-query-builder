@@ -10,6 +10,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Dynamic.Core;
 using System.Linq.Expressions;
@@ -328,65 +329,65 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 
             var newDataObj = expObj as IDictionary<string, Object>;
 
-            //var newObj = new ExpandoObject() as IDictionary<string, Object>;
-            //newObj.Add("FirstName", "Masallah");
-            //newObj.Add("LastName", "ÖZEN");
-            //newObj.Add("Age", 36);
+            newDataObj.Add("FirstName", "Masallah");
+            newDataObj.Add("LastName", "ÖZEN");
+            newDataObj.Add("Age", 36);
 
-            //var expr = $"{newObj["Age"]} ";
-            //newDataObj.Add("FirstName", "Masallah");
+            dynamic newObj = newDataObj.ToExpando();
 
-            //dynamic newObj = newDataObj.ToExpando();
+            boundRefDataItem.DataItem = newObj;
 
-            ////var scriptContent = @" ((System.Collections.Generic.IDictionary<System.String, System.Object>)data)[""ParentId""] == null ";
-            //var scriptContent = @" data.PersonImsId == data.CreatorImsId ";
+            string mergedDataItem = JsonConvert.SerializeObject(boundRefDataItem);
 
-            //var refs = new List<MetadataReference>{
-            //    MetadataReference.CreateFromFile(typeof(Microsoft.CSharp.RuntimeBinder.RuntimeBinderException).GetTypeInfo().Assembly.Location),
-            //    MetadataReference.CreateFromFile(typeof(System.Runtime.CompilerServices.DynamicAttribute).GetTypeInfo().Assembly.Location)
-            //};
+            var jsonObjectData = JObject.Parse(mergedDataItem);
 
-            //var script = CSharpScript.Create(scriptContent, options: ScriptOptions.Default.AddReferences(refs), globalsType: typeof(Globals));
+            string line = JsonUtils.GenerateDynamicLinqStatement(jsonObjectData);
 
-            //script.Compile();
+            var queryable = new[] { jsonObjectData }.AsQueryable<JObject>().Select(line);
 
-            //// create new global that will contain the data we want to send into the script
-            //var g = new Globals() { data = newObj };
-
-            ////Execute and display result
-            //var r = script.RunAsync(g).Result;
-
-            //newDataObj.Add("DataOwner", r.ReturnValue);
 
             var rule = new FilterRule
             {
-                Condition = "and",
-                Field = "FormId",
-                Id = "DataOwner",
+                Field = "DataItem.Age",
+                Id = "FirstName",
                 Input = "NA",
-                Operator = "not_equal",
+                Operator = "greater_or_equal",
                 Type = "integer",
-                Value = "[it].Mode"
+                Value = "36"
             };
 
-            var genericList = new List<BoundedReferenceDataActionItem>()
+            var filterRule = new FilterRule
             {
-                boundRefDataItem
+                Condition = "and",
+                Rules = new List<FilterRule>()
+                {
+                    rule
+                }
             };
 
-            var res =genericList.BuildQuery(rule).ToList();
-
+            var res = queryable.BuildQuery(filterRule).Any();
         }
 
         [Test]
         public void TestBoundedReferenceDataActionItemDynamicProperties()
         {
-         //   var dataItem = @"{
-		       // 'Id': 999,
-		       // 'PersonImsId': 123,
-		       // 'CreatorImsId': 123
-	        //}";
-            
+            //   var dataItem = @"{
+            // 'Id': 999,
+            // 'PersonImsId': 123,
+            // 'CreatorImsId': 123
+            //}";
+
+            var rule = new FilterRule
+            {
+                Condition = "and",
+                Field = "DataItem.PersonImsId",
+                Id = "DataOwner",
+                Input = "NA",
+                Operator = "equal",
+                Type = "integer",
+                Value = "DataItem.CreatorImsId"
+            };
+
             var dataItem = @"{
 		        'FormId': 1,
 		        'Mode': 1,
@@ -406,6 +407,17 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
             var asss = queryable.Where("DataItem.PersonImsId == DataItem.CreatorImsId ").ToDynamicList();
 
             bool result = queryable.Any("DataItem.PersonImsId == DataItem.CreatorImsId ");
+
+            var filterRule = new FilterRule
+            {
+                Condition = "and",
+                Rules = new List<FilterRule>()
+                {
+                    rule
+                }
+            };
+
+            var aa = QueryBuilder.BuildQuery(queryable, filterRule).Any();
 
             dynamic _expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
 
@@ -435,17 +447,6 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
             //    StateId = 1,
             //    DataItem = dataItemObj
             //};
-
-            var rule = new FilterRule
-            {
-                Condition = "and",
-                Field = "DataItem.PersonImsId",
-                Id = "DataOwner",
-                Input = "NA",
-                Operator = "equal",
-                Type = "integer",
-                Value = "123"
-            };
 
             var res = new[] { dataItemObj }.AsQueryable().BuildQuery(rule).ToList();
 

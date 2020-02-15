@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Linq.Dynamic.Core;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -23,6 +24,19 @@ namespace Castle.DynamicLinqQueryBuilder
         ///   <c>true</c> if [parse dates as UTC]; otherwise, <c>false</c>.
         /// </value>
         public static bool ParseDatesAsUtc { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="queryable"></param>
+        /// <param name="filterRule"></param>
+        /// <returns></returns>
+        public static IQueryable BuildQuery(this IQueryable queryable, IFilterRule filterRule)
+        {
+            var returnValue = new ToStringQueryFiltering().ApplyFiltering(queryable,filterRule);
+
+            return returnValue;
+        }
 
         /// <summary>
         /// Gets the filtered collection after applying the provided filter rules.
