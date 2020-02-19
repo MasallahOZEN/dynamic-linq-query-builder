@@ -99,7 +99,7 @@
     <Compile Include="DynamicModelFilterTest.cs" />
     <Compile Include="ExceptionAssert.cs" />
     <Compile Include="JsonNetFilterRuleTests.cs" />
-    <Compile Include="JsonUtils.cs" />
+    <Compile Include="MyTypeBuilder.cs" />
     <Compile Include="QueryBuilderFilterRuleTests.cs" />
     <Compile Include="Tests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

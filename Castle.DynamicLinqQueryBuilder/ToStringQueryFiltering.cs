@@ -59,7 +59,11 @@ namespace Castle.DynamicLinqQueryBuilder
             if (dataType == "string")
             {
                 param = @"""" + param.ToUpper().ToLower(new System.Globalization.CultureInfo("tr-TR")) + @"""";
-                caseMod = ".ToLower()"; // always ignore case
+                if (op != "in")
+                {                    
+                    caseMod = ".ToLower()"; // always ignore case
+                }
+                
                 nullCheck = $"{field} != null && ";
             }
 
@@ -105,7 +109,44 @@ namespace Castle.DynamicLinqQueryBuilder
                     break;
 
                 case "in":
-                    exStr = string.Format("({3}{0}{2}.Contains({1}))", field, param, caseMod, nullCheck);
+
+                    if (dataType == "integer")
+                    {
+                        if (op == "in")
+                        {
+                            var valueItems = param.Split(new[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+
+                            if (valueItems.Length > 1)
+                            {
+                                exStr = "";
+                                for (int i = 0; i < valueItems.Length; i++)
+                                {
+                                    if (i < valueItems.Length - 1)
+                                    {
+                                        exStr += string.Format("{0}{2} == {1} || ", field, valueItems[i], caseMod);
+                                    }
+                                    else if (i == valueItems.Length - 1)
+                                    {
+                                        exStr += string.Format("{0}{2} == {1} ", field, valueItems[i], caseMod);
+                                    }
+                                }
+                                exStr = $" ( {field} != null && ({exStr}) )";
+                            }
+                            else
+                            {
+                                exStr = string.Format("({3}{0}{2} == {1})", field, param, caseMod, nullCheck);
+                            }
+
+                        }
+                        else
+                        {
+                            exStr = string.Format("({3}{0}{2} == {1})", field, param, caseMod, nullCheck);
+                        }
+                    }
+                    else
+                    {
+                        exStr = string.Format("({3}{0}{2}.Contains({1}))", field, param, caseMod, nullCheck);
+                    }
                     break;
 
                 case "not_in":

@@ -1,4 +1,6 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Castle.DynamicLinqQueryBuilder.Helper;
+using Castle.DynamicLinqQueryBuilder.Test;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Newtonsoft.Json;
@@ -18,6 +20,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
+using Extensions = Castle.DynamicLinqQueryBuilder.Helper.Extensions;
 
 namespace Castle.DynamicLinqQueryBuilder.Tests
 {
@@ -32,162 +35,7 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
         public int ComponentEventId { get; set; }
         public dynamic DataItem { get; set; }
     }
-
-    public static class MyTypeBuilder
-    {
-        public static object CreateNewObject(List<dynamic> yourListOfFields, out Type type)
-        {
-            var myType = CompileResultType(yourListOfFields);
-            var myObject = Activator.CreateInstance(myType);
-
-            type = myType;
-
-            return myObject;
-        }
-        public static Type CompileResultType(List<dynamic> yourListOfFields)
-        {
-            TypeBuilder tb = GetTypeBuilder();
-            ConstructorBuilder constructor = tb.DefineDefaultConstructor(MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName);
-
-            // NOTE: assuming your list contains Field objects with fields FieldName(string) and FieldType(Type)
-            foreach (var field in yourListOfFields)
-            {
-                if (field.FieldType!= typeof(ExpandoObject))
-                {
-                    CreateProperty(tb, field.FieldName, field.FieldType);
-                }
-                else
-                {
-                    CreateProperty(tb, field.FieldName, typeof(object));
-                }
-            } 
-
-            Type objectType = tb.CreateType();
-            return objectType;
-        }
-
-        private static TypeBuilder GetTypeBuilder()
-        {
-            var typeSignature = "MyDynamicType"+new Random().Next(0,100).ToString();
-            var an = new AssemblyName(typeSignature);
-            AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(an, AssemblyBuilderAccess.Run);
-            ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule("MainModule");
-            TypeBuilder tb = moduleBuilder.DefineType(typeSignature,
-                    TypeAttributes.Public |
-                    TypeAttributes.Class |
-                    TypeAttributes.AutoClass |
-                    TypeAttributes.AnsiClass |
-                    TypeAttributes.BeforeFieldInit |
-                    TypeAttributes.AutoLayout,
-                    null);
-            return tb;
-        }
-
-        private static void CreateProperty(TypeBuilder tb, string propertyName, Type propertyType)
-        {
-            FieldBuilder fieldBuilder = tb.DefineField("_" + propertyName, propertyType, FieldAttributes.Private);
-
-            PropertyBuilder propertyBuilder = tb.DefineProperty(propertyName, PropertyAttributes.HasDefault, propertyType, null);
-            MethodBuilder getPropMthdBldr = tb.DefineMethod("get_" + propertyName, MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, propertyType, Type.EmptyTypes);
-            ILGenerator getIl = getPropMthdBldr.GetILGenerator();
-
-            getIl.Emit(OpCodes.Ldarg_0);
-            getIl.Emit(OpCodes.Ldfld, fieldBuilder);
-            getIl.Emit(OpCodes.Ret);
-
-            MethodBuilder setPropMthdBldr =
-                tb.DefineMethod("set_" + propertyName,
-                  MethodAttributes.Public |
-                  MethodAttributes.SpecialName |
-                  MethodAttributes.HideBySig,
-                  null, new[] { propertyType });
-
-            ILGenerator setIl = setPropMthdBldr.GetILGenerator();
-            Label modifyProperty = setIl.DefineLabel();
-            Label exitSet = setIl.DefineLabel();
-
-            setIl.MarkLabel(modifyProperty);
-            setIl.Emit(OpCodes.Ldarg_0);
-            setIl.Emit(OpCodes.Ldarg_1);
-            setIl.Emit(OpCodes.Stfld, fieldBuilder);
-
-            setIl.Emit(OpCodes.Nop);
-            setIl.MarkLabel(exitSet);
-            setIl.Emit(OpCodes.Ret);
-
-            propertyBuilder.SetGetMethod(getPropMthdBldr);
-            propertyBuilder.SetSetMethod(setPropMthdBldr);
-        }
-    }
-
-    public static class Extensions
-    {
-        public static ExpandoObject ToExpando(this IDictionary<string, object> dictionary)
-        {
-            var expando = new ExpandoObject();
-            var expandoDic = (IDictionary<string, object>)expando;
-
-            // go through the items in the dictionary and copy over the key value pairs)
-            foreach (var kvp in dictionary)
-            {
-                // if the value can also be turned into an ExpandoObject, then do it!
-                if (kvp.Value is IDictionary<string, object>)
-                {
-                    var expandoValue = ((IDictionary<string, object>)kvp.Value).ToExpando();
-                    expandoDic.Add(kvp.Key, expandoValue);
-                }
-                else if (kvp.Value is ICollection)
-                {
-                    // iterate through the collection and convert any strin-object dictionaries
-                    // along the way into expando objects
-                    var itemList = new List<object>();
-                    foreach (var item in (ICollection)kvp.Value)
-                    {
-                        if (item is IDictionary<string, object>)
-                        {
-                            var expandoItem = ((IDictionary<string, object>)item).ToExpando();
-                            itemList.Add(expandoItem);
-                        }
-                        else
-                        {
-                            itemList.Add(item);
-                        }
-                    }
-
-                    expandoDic.Add(kvp.Key, itemList);
-                }
-                else
-                {
-                    expandoDic.Add(kvp);
-                }
-            }
-
-            return expando;
-        }
-
-        public static Expression<Func<TSource, dynamic>> DynamicFields<TSource>(IEnumerable<string> fields, List<DynamicProperty> properties)
-        {
-            var source = Expression.Parameter(typeof(TSource), "o");
-
-            var resultType = DynamicClassFactory.CreateType(properties, false);
-            var bindings = properties.Select(p => Expression.Bind(resultType.GetProperty(p.Name), Expression.Property(source, p.Name)));
-            var result = Expression.MemberInit(Expression.New(resultType), bindings);
-            return Expression.Lambda<Func<TSource, dynamic>>(result, source);
-        }
-
-        public static IQueryable<T> CloneListAs<T>(IList<object> source)
-        {
-            // Here we can do anything we want with T
-            // T == source[0].GetType()
-            return source.Cast<T>().AsQueryable();
-        }
-    }
-
-    public class Globals
-    {
-        public dynamic data;
-    }
-
+    
     [ExcludeFromCodeCoverage]
     [TestFixture]
     public class DynamicModelFilterTest
@@ -318,6 +166,12 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
 		        'CreatorImsId': 123
 	        }";
 
+            var dataItem2 = @"{
+		        'Id': 888,
+		        'PersonImsId': 123,
+		        'CreatorImsId': 1234
+	        }";
+
             var boundRefDataItem = new BoundedReferenceDataActionItem { 
                 FormId = 1,
                 Mode = 1,
@@ -325,7 +179,16 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 StateId = 1
             };
 
+            var boundRefDataItem2= new BoundedReferenceDataActionItem
+            {
+                FormId = 1,
+                Mode = 1,
+                ComponentId = 11,
+                StateId = 2
+            };
+
             var expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
+            var expObj2 = JsonConvert.DeserializeObject<ExpandoObject>(dataItem2);
 
             var newDataObj = expObj as IDictionary<string, Object>;
 
@@ -333,17 +196,27 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
             newDataObj.Add("LastName", "ÖZEN");
             newDataObj.Add("Age", 36);
 
+            var newDataObj2 = expObj2 as IDictionary<string, Object>;
+
+            newDataObj2.Add("FirstName", "Semih");
+            newDataObj2.Add("LastName", "ÖZEN");
+            newDataObj2.Add("Age", 16);
+
             dynamic newObj = newDataObj.ToExpando();
+            dynamic newObj2 = newDataObj2.ToExpando();
 
             boundRefDataItem.DataItem = newObj;
+            boundRefDataItem2.DataItem = newObj2;
 
             string mergedDataItem = JsonConvert.SerializeObject(boundRefDataItem);
+            string mergedDataItem2 = JsonConvert.SerializeObject(boundRefDataItem2);
 
             var jsonObjectData = JObject.Parse(mergedDataItem);
+            var jsonObjectData2 = JObject.Parse(mergedDataItem2);
 
             string line = JsonUtils.GenerateDynamicLinqStatement(jsonObjectData);
 
-            var queryable = new[] { jsonObjectData }.AsQueryable<JObject>().Select(line);
+            var queryable = new[] { jsonObjectData, jsonObjectData2 }.AsQueryable<JObject>().Select(line);
 
 
             var rule = new FilterRule
@@ -365,7 +238,7 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 }
             };
 
-            var res = queryable.BuildQuery(filterRule).Any();
+            var res = queryable.BuildDynamicQuery(filterRule).ToDynamicArray();
         }
 
         [Test]
@@ -417,7 +290,7 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 }
             };
 
-            var aa = QueryBuilder.BuildQuery(queryable, filterRule).Any();
+            var aa = QueryBuilder.BuildDynamicQuery(queryable, filterRule).Any();
 
             dynamic _expObj = JsonConvert.DeserializeObject<ExpandoObject>(dataItem);
 
