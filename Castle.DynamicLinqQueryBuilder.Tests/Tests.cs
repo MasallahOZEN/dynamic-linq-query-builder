@@ -148,7 +148,7 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 LastModified = DateTime.UtcNow.Date,
                 LastModifiedIfPresent = DateTime.UtcNow.Date,
                 LongerTextToFilter = "THERE IS SOMETHING INTERESTING ABOUT THIS TEXT",
-                NullableContentTypeId = null,
+                NullableContentTypeId = 2,
                 PossiblyEmptyStatValue = 1.112,
                 StatValue = 1.11,
                 IntList = new List<int>() { 1, 3, 5, 7 },
@@ -158,6 +158,28 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 IntNullList = new List<int?>() { 3, 4, null, null }
             };
             tData.Add(entry4);
+
+            var entry5 = new ExpressionTreeBuilderTestClass()
+            {
+                ContentTypeId = 1,
+                ContentTypeName = "Multiple-Choice",
+                Enemies = new List<int>(),
+                Flags = new List<string>() { "THIS IS A FLAG" },
+                IsPossiblyNotSetBool = true,
+                IsSelected = true,
+                LastModified = DateTime.UtcNow.Date,
+                LastModifiedIfPresent = DateTime.UtcNow.Date,
+                LongerTextToFilter = "THERE IS SOMETHING INTERESTING ABOUT THIS TEXT",
+                NullableContentTypeId = 2,
+                PossiblyEmptyStatValue = 1.112,
+                StatValue = 1.11,
+                IntList = new List<int>() { 1, 3, 5, 7 },
+                StrList = new List<string>() { "Str1", "Str2" },
+                DateList = new List<DateTime>() { DateTime.UtcNow.Date },
+                DoubleList = new List<double>() { 1.48, },
+                IntNullList = new List<int?>() { 3, 4, null, null }
+            };
+            tData.Add(entry5);
 
 
             return tData;

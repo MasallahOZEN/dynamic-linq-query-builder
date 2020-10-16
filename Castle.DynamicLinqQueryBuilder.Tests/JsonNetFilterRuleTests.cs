@@ -143,18 +143,42 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
             //expect two entries to match for an integer comparison
             var contentIdFilter = new JsonNetFilterRule
             {
-                Condition = "and",
+                Condition = "or",
                 Rules = new List<JsonNetFilterRule>
                 {
                     new JsonNetFilterRule
                     {
                         Condition = "and",
-                        Field = "ContentTypeId",
-                        Id = "ContentTypeId",
-                        Input = "NA",
-                        Operator = "in",
-                        Type = "integer",
-                        Value = new[] { 1, 2 }
+                        Rules = new List<JsonNetFilterRule>
+                        {
+                            new JsonNetFilterRule
+                            {
+                                Condition = "and",
+                                Field = "ContentTypeId",
+                                Id = "ContentTypeId",
+                                Input = "NA",
+                                Operator = "in",
+                                Type = "integer",
+                                Value = new[] { 1, 2 }
+                            }
+                        }
+                    },
+                    new JsonNetFilterRule
+                    {
+                        Condition = "and",
+                        Rules = new List<JsonNetFilterRule>
+                        {
+                            new JsonNetFilterRule
+                            {
+                                Condition = "and",
+                                Field = "ContentTypeId",
+                                Id = "ContentTypeId",
+                                Input = "NA",
+                                Operator = "in",
+                                Type = "integer",
+                                Value = new[] { 1, 2 }
+                            }
+                        }
                     }
                 }
             };

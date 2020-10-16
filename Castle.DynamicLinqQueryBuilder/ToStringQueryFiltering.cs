@@ -12,8 +12,9 @@ namespace Castle.DynamicLinqQueryBuilder
         public IQueryable ApplyFiltering(IQueryable query, IFilterRule filter)
         {
             var paramList = new Dictionary<int, object>();
+            int counter = -1;
 
-            string filtering = GetFiltering(filter, ref paramList);
+            string filtering = GetFiltering(filter, ref paramList,ref counter);
 
             if (paramList.Where(x=>x.Value != null).Count() < 1)
             {
@@ -25,26 +26,74 @@ namespace Castle.DynamicLinqQueryBuilder
             }
         }
 
-        private string GetFiltering(IFilterRule filter, ref Dictionary<int, object> paramObjList)
+        private string GetFiltering(IFilterRule filter, ref Dictionary<int, object> paramObjList, ref int counter)
         {
             var finalExpression = string.Empty;
 
-            int counter = -1;
             foreach (var filterObject in filter.Rules)
             {
-                counter++;
-
-                if (finalExpression.Length > 0)
+                if (filterObject.Rules?.Count()>1)
                 {
-                    finalExpression += " " + filter.Condition + " ";
+                    var innerExpression = GetFiltering(filterObject, ref paramObjList,ref counter);
+
+                    if (finalExpression.Length>0)
+                    {
+                        finalExpression += $" {filter.Condition} ({innerExpression}) ";
+                    }
+                    else
+                    {
+                        finalExpression += $" ({innerExpression}) ";
+                    }
                 }
+                else
+                {
+                    var currentFilterObject = filterObject;
 
-                var expression = GetExpression(filterObject.Type, filterObject.Field, filterObject.Operator, filterObject.Value.ToString(), counter);
-                finalExpression += expression.Item1;
+                    if (filterObject.Rules?.Count() == 1)
+                    {
+                        currentFilterObject = filterObject.Rules.First();                        
+                    }
 
-                paramObjList.Add(paramObjList.Count() + 1, expression.Item2);
+                    var expression = GetFilteringExpression(currentFilterObject, ref paramObjList, ref counter);
 
+                    if (filter.Rules?.Count() > 1)
+                    {
+                        if (finalExpression.Length > 0)
+                        {
+                            finalExpression += $" {filter.Condition} ({expression}) ";
+                        }
+                        else
+                        {
+                            finalExpression += $" ({expression}) ";
+                        }
+                    }
+                    else
+                    {
+                        finalExpression += expression;
+                    }
+
+                }
+                
             }
+
+            return finalExpression.Length == 0 ? "true" : finalExpression;
+        }
+
+        private string GetFilteringExpression(IFilterRule filterObject, ref Dictionary<int, object> paramObjList,ref int counter)
+        {
+            if (filterObject.Rules?.Count()>0)
+            {
+                return GetFiltering(filterObject, ref paramObjList, ref counter);
+            }
+
+            var finalExpression = string.Empty;
+
+            counter++;
+
+            var expression = GetExpression(filterObject.Type, filterObject.Field, filterObject.Operator, filterObject.Value.ToString(), counter);
+            finalExpression += expression.Item1;
+
+            paramObjList.Add(paramObjList.Count() + 1, expression.Item2);
 
             return finalExpression.Length == 0 ? "true" : finalExpression;
         }

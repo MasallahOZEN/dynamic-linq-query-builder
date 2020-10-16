@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Linq.Dynamic;
 
 namespace Castle.DynamicLinqQueryBuilder.Tests
 {
@@ -2953,39 +2954,80 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
         public void FilterWithInvalidParameters()
         {
             //expect 3 entries to match for an integer comparison
-            var contentIdFilter = new QueryBuilderFilterRule
+            var contentIdFilter = new JsonNetFilterRule
             {
                 Condition = "and",
-                Rules = new List<QueryBuilderFilterRule>
+                Rules = new List<JsonNetFilterRule>
                 {
-                    new QueryBuilderFilterRule
+                    new JsonNetFilterRule
                     {
                         Condition = "and",
-                        Field = "ContentTypeId",
-                        Id = "ContentTypeId",
+                        Field = "IsSelected",
+                        Id = "IsSelected",
                         Input = "NA",
-                        Operator = "less_or_equal",
-                        Type = "integer",
-                        Value = new[] { "2" }
+                        Operator = "equal",
+                        Type = "boolean",
+                        Value = true
                     },
-                    new QueryBuilderFilterRule
+                    new JsonNetFilterRule
                     {
-                        Condition = "and",
-                        Field = "ContentTypeId",
-                        Id = "ContentTypeId",
-                        Input = "NA",
-                        Operator = "less_or_equal",
-                        Type = "integer",
-                        Value = new[] { "2" }
+                        Condition = "or",
+                        Rules = new List<JsonNetFilterRule>
+                        {
+                            new JsonNetFilterRule
+                            {
+                                Condition = "and",
+                                Rules = new List<JsonNetFilterRule>
+                                {
+                                    new JsonNetFilterRule
+                                    {
+                                        Condition = "and",
+                                        Field = "ContentTypeId",
+                                        Id = "ContentTypeId",
+                                        Input = "NA",
+                                        Operator = "equal",
+                                        Type = "integer",
+                                        Value = 1
+                                    }
+                                }
+                            },
+                            new JsonNetFilterRule
+                            {
+                                Condition = "and",
+                                Rules = new List<JsonNetFilterRule>
+                                {
+                                    new JsonNetFilterRule
+                                    {
+                                        Condition = "and",
+                                        Field = "NullableContentTypeId",
+                                        Id = "NullableContentTypeId",
+                                        Input = "NA",
+                                        Operator = "equal",
+                                        Type = "integer",
+                                        Value = 2
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             };
 
-            StartingQuery.BuildQuery(contentIdFilter).ToList();
+            try
+            {
+                IQueryable query = StartingQuery;
+                var ss111111 = QueryBuilder.BuildDynamicQuery(query,contentIdFilter);
+            }
+            catch (Exception ee)
+            {
+
+            }
+
+            var ss1 = StartingQuery.BuildQuery(contentIdFilter).ToList();
 
             contentIdFilter.Condition = "or";
 
-            StartingQuery.BuildQuery(contentIdFilter).ToList();
+            var ss2 = StartingQuery.BuildQuery(contentIdFilter).ToList();
 
             StartingQuery.BuildQuery(null).ToList();
 
